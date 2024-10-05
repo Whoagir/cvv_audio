@@ -1,0 +1,144 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define bool int
+#define true 1
+#define false 0
+
+
+typedef struct stack_tag {
+    char *value;
+    struct stack_tag *next;
+} Stack;
+
+Stack *push(Stack *top, char *value) {
+    Stack *ptr = (Stack *)malloc(sizeof(Stack));
+    if (!ptr) return NULL; // Проверка выделения памяти
+
+    ptr->value = strdup(value); // Дублирование строки, чтобы сохранить значение.
+    ptr->next = top;
+    return ptr;
+}
+
+Stack *pop(Stack *top, char **value) {
+    if (top == NULL) {
+        *value = NULL;
+        return NULL;
+    }
+    Stack *temp = top;
+    *value = top->value;
+    top = top->next;
+
+    free(temp);
+    return top;
+}
+
+Stack *parseExpr(char *expr) {
+    Stack *top = NULL;
+    char currentToken[256] = {0}; // Предполагаем, что токен не превышает 255 символов
+    int tokenIndex = 0;
+
+    for (int i = 0; expr[i] != '\0'; i++) {
+        char ch = expr[i];
+        if (isspace(ch)) {
+            if (tokenIndex > 0) { // Существует накопленный токен
+                currentToken[tokenIndex] = '\0'; // Завершаем текущий токен
+                top = push(top, currentToken);
+                tokenIndex = 0; // Сброс индекса для следующего токена
+            }
+        }
+        else if (isdigit(ch) || isalpha(ch) || ch == '.') {
+            currentToken[tokenIndex++] = ch; // Накопление символов токена
+        }
+        else { // Оператор или скобка
+            if (tokenIndex > 0) { // Существует накопленный токен
+                currentToken[tokenIndex] = '\0';
+                top = push(top, currentToken);
+                tokenIndex = 0;
+            }
+            char operatorToken[2] = {ch, '\0'}; // Создаем строку из одного символа оператора/скобки
+            top = push(top, operatorToken);
+        }
+    }
+
+    if (tokenIndex > 0) { // Добавляем последний токен, если он есть
+        currentToken[tokenIndex] = '\0';
+        top = push(top, currentToken);
+    }
+
+    return top;
+}
+
+bool isOperator(const char* token) {
+    return strcmp(token, "+") == 0 || strcmp(token, "-") == 0 ||
+           strcmp(token, "*") == 0 || strcmp(token, "/") == 0;
+}
+
+float evaluateOperation(float a, float b, const char* op) {
+    if (strcmp(op, "+") == 0) return a + b;
+    if (strcmp(op, "-") == 0) return a - b;
+    if (strcmp(op, "*") == 0) return a * b;
+    if (strcmp(op, "/") == 0) return b == 0 ? 0 : a / b; // Простейшая проверка на деление на ноль
+    return 0;
+}
+
+float evaluateRPN(Stack *top) {
+    Stack *tempStack = NULL;
+    char *token;
+    float result = 0, a, b;
+    char *temporaryValue;
+
+    while (top != NULL) {
+        top = pop(top, &token);
+        if (!isOperator(token)) { // Если число, то помещаем во временный стек
+            float value = atof(token);
+            char *valueAsString = (char*)malloc(20 * sizeof(char)); // Предполагая, что это достаточно для отображения числа
+            snprintf(valueAsString, 20, "%f", value);
+            tempStack = push(tempStack, valueAsString);
+            free(valueAsString);
+        } else { // Если оператор, то выполняем операцию с двумя последними числами
+            tempStack = pop(tempStack, &temporaryValue);
+            b = atof(temporaryValue);
+            free(temporaryValue); // Освобождаем память после чтения
+
+            tempStack = pop(tempStack, &temporaryValue);
+            a = atof(temporaryValue);
+            free(temporaryValue); // Освобождаем память после чтения
+
+            result = evaluateOperation(a, b, token);
+
+            char *resultAsString = (char*)malloc(20 * sizeof(char));
+            snprintf(resultAsString, 20, "%f", result);
+            tempStack = push(tempStack, resultAsString);
+            free(resultAsString);
+        }
+        free(token); // Не забываем освободить память для token
+    }
+
+    // В конце в стеке должен быть один элемент — результат
+    tempStack = pop(tempStack, &temporaryValue);
+    result = atof(temporaryValue);
+    free(temporaryValue); // Освобождаем память после чтения
+    return result;
+}
+
+
+// Функция для демонстрации работы parseExpr
+int main() {
+
+    char inputExpression[256];
+    fgets(inputExpression, 256, stdin);
+    Stack *top = parseExpr(inputExpression);
+    // Выводим содержимое стека (можно написать функцию для вывода стека)
+    for (Stack *ptr = top; ptr != NULL; ptr = ptr->next) {
+        printf("%s\n", ptr->value);
+    }
+    double result = evaluateRPN(top);
+    printf("Result: %f\n", result);
+
+
+
+    return 0;
+}
